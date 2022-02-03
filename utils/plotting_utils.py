@@ -7,7 +7,7 @@ import arviz as az
 
 
 #Vizualize predictions:
-def plot_linear_regression(df, fitted, x_key, y_key, random_factor=None, add_hdi=True):
+def plot_linear_regression(df, fitted, x_key, y_key, random_factor=None, add_ppm=True):
 
     '''This function can be used to visualize the results of a bayesian linear regression.
         
@@ -28,7 +28,7 @@ def plot_linear_regression(df, fitted, x_key, y_key, random_factor=None, add_hdi
     g = sns.scatterplot(x=x_key, y=y_key, data=df, color='#0f4c81', alpha=0.5)
     plt.plot(x_range, regression_line, color='#333333', linewidth=3)
     
-    if add_hdi == True:
+    if add_ppm == True:
         if random_factor == None:
             hdi2plot = fitted.posterior[f"{y_key}_mean"]
             az.plot_hdi(x=df[x_key], y=hdi2plot, color='#777777')
