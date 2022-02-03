@@ -1,0 +1,188 @@
+---
+title: 'Exercise: Linear Multilevel Models'
+author: "Paul Bürkner"
+date: "`r Sys.Date()`"
+output: html_document
+encoding: UTF-8
+---
+
+```{r, SETTINGS-knitr, include=FALSE}
+# only relevant when knitting the document
+options(width = 90)
+knitr::opts_chunk$set(
+  cache = FALSE,
+  comment = NA,
+  message = FALSE,
+  warning = FALSE
+)
+```
+
+Load required packages:
+```{r, cache=FALSE}
+library(brms)
+```
+
+## Example: Sleepstudy
+
+Load the data:
+```{r}
+data("sleepstudy", package = "lme4")
+head(sleepstudy)
+# look at the help page:
+# ?sleepstudy
+```
+
+Preparation of data we need later for conditional plots
+
+```{r}
+conditions <- make_conditions(sleepstudy, "Subject")
+```
+
+### Analyse the data
+
+Fit a complete pooling model:
+```{r, results="hide"}
+fit_sleep1 <- brm(Reaction ~ 1 + Days, data = sleepstudy)
+```
+
+Summarize results:
+```{r}
+summary(fit_sleep1)
+plot(fit_sleep1, ask = FALSE)
+```
+
+Vizualize predictions:
+```{r}
+plot(conditional_effects(fit_sleep1), points = TRUE)
+```
+
+Compute fitted values and residuals
+```{r}
+head(fitted(fit_sleep1))
+head(residuals(fit_sleep1))
+```
+
+Check model fit:
+```{r}
+pp_check(fit_sleep1)
+pp_check(fit_sleep1, "error_scatter_avg")
+```
+
+partial pooling: individual intercept, common slope:
+```{r, results="hide"}
+fit_sleep2 <- brm(Reaction ~ 1 + Days + (1 | Subject), 
+                  data = sleepstudy)
+```
+
+```{r}
+summary(fit_sleep2)
+plot(fit_sleep2)
+```
+
+Extract effects of each Subject:
+```{r}
+coef(fit_sleep2)
+```
+
+Visualize predictions:
+```{r}
+plot(conditional_effects(fit_sleep2), points = TRUE)
+# re_formula = NULL ensures that group-level effects are included
+me2 <- conditional_effects(fit_sleep2, conditions = conditions, 
+                        re_formula = NULL)
+plot(me2, ncol = 6, points = TRUE)
+```
+
+Partial pooling: individual intercept AND slope:
+```{r, results="hide"}
+fit_sleep3 <- brm(
+  Reaction ~ 1 + Days + (1 + Days | Subject), 
+  data = sleepstudy
+)
+```
+
+```{r}
+summary(fit_sleep3)
+plot(fit_sleep3, N = 3, ask = FALSE)
+```
+
+Extract effects of each Subject:
+```{r}
+coef(fit_sleep3)
+```
+
+Check model fit:
+```{r}
+pp_check(fit_sleep3)
+pp_check(fit_sleep3, "error_scatter_avg")
+```
+
+Visualize predictions:
+```{r}
+plot(conditional_effects(fit_sleep3), points = TRUE)
+# re_formula = NULL ensures that group-level effects are included
+me3 <- conditional_effects(fit_sleep3, conditions = conditions, 
+                           re_formula = NULL)
+plot(me3, ncol = 6, points = TRUE)
+```
+
+Compare all trhee models:
+```{r}
+loo(fit_sleep1, fit_sleep2, fit_sleep3)
+```
+
+Compute model weights:
+```{r}
+model_weights(fit_sleep1, fit_sleep2, fit_sleep3, weights = "loo")
+```
+
+### Working with priors
+
+Find out on which parameters to set priors:
+```{r}
+get_prior(Reaction ~ 1 + Days + (1 + Days | Subject), 
+          data = sleepstudy)
+```
+
+Let's define some priors:
+```{r}
+bprior <- c(set_prior("normal(5, 5)", coef = "Days"),
+            set_prior("cauchy(0, 10)", class = "sd"),
+            set_prior("lkj(2)", class = "cor"))
+bprior
+```
+
+Fit the partial pooling model again with these priors. Also sample from these priors.
+
+```{r, results="hide"}
+fit_sleep4 <- brm(
+  Reaction ~ 1 + Days + (1 + Days | Subject), 
+  data = sleepstudy, prior = bprior, 
+  sample_prior = TRUE
+)
+```
+
+```{r}
+summary(fit_sleep4)
+```
+
+
+### Evaluate some hypothesis
+
+```{r}
+# Evid.Ratio is the ratio of P(Days > 7) / P(Days <= 7)
+(hyp1 <- hypothesis(fit_sleep4, "Days < 7"))
+plot(hyp1)
+```
+
+```{r}
+# Evid.Ratio is the Bayes Factor of the posterior
+# vs the prior that Days = 10 is TRUE (Savage-Dickey Ratio)
+(hyp2 <- hypothesis(fit_sleep4, "Days = 10"))
+plot(hyp2)
+```
+
+Excerise: Try out other post-processing methods yourself:
+```{r}
+methods(class = "brmsfit")
+```
